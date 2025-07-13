@@ -39,8 +39,6 @@ if _comfy_nodes_dir not in sys.path:
     sys.path.insert(0, _comfy_nodes_dir)
 
 from transformers_provider import send_transformers_request  # NEW: local HF models
-# NEW: vLLM local provider
-from vllm_provider import send_vllm_request
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -56,7 +54,7 @@ def run_async(coroutine):
             
         # Get or create event loop
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -153,11 +151,6 @@ async def send_request(
         formatted_images = []
         if images:
             formatted_images = convert_images_for_api(images, target_format="base64")
-            # Ollama expects raw base64 without the data URI prefix – remove if present
-            formatted_images = [
-                img.split("base64,")[1] if isinstance(img, str) and "base64," in img else img
-                for img in formatted_images
-            ]
 
         # ------------------------------------------------------------------
         #  Ollama
@@ -307,23 +300,6 @@ async def send_request(
                 top_p=top_p,
                 repeat_penalty=repeat_penalty,
                 precision="fp16",  # Could be param
-            )
-
-        # ------------------------------------------------------------------
-        #  Local vLLM Provider (offline)
-        # ------------------------------------------------------------------
-        if llm_provider == "vllm":
-            return await send_vllm_request(
-                base64_images=formatted_images,
-                base64_audio=[],
-                model=llm_model,
-                system_message=system_message,
-                user_message=user_message,
-                messages=messages or [],
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=top_p,
-                repeat_penalty=repeat_penalty,
             )
 
         return {"error": f"Unsupported llm_provider '{llm_provider}'"}
